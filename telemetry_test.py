@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-import telemetry as t
+from . import telemetry as t
 
 def test_one():
     df = pd.DataFrame([

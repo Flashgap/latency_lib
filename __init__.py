@@ -1,1 +1,2 @@
-from telemetry import *
+from .telemetry import *
+

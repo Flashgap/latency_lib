@@ -160,7 +160,7 @@ def plot_durations(df, mask, sample_rate="5min", color=None, normalize=False, **
 
 def plot_category_repartition(df, mask):
     title = f"Number of {mask.name()}"
-    nb_spans = df.groupby("time_type").size().rename("number")
+    nb_spans = mask.apply(df).groupby("time_type").size().rename("number")
 
     fig = px.pie(
         nb_spans.reset_index(),

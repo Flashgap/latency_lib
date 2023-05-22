@@ -109,11 +109,11 @@ class Mask:
         )
 
 
-def add_time_type(df):
+def add_time_type(df, incident_range, baseline_range):
     dg = pd.DataFrame(df.copy())
     start_time = df.reset_index().start_time
-    incident = (start_time >= INCIDENT_RANGE[0]) & (start_time <= INCIDENT_RANGE[1])
-    baseline = (start_time >= BASELINE_RANGE[0]) & (start_time <= BASELINE_RANGE[1])
+    incident = (start_time >= incident_range[0]) & (start_time <= incident_range[1])
+    baseline = (start_time >= baseline_range[0]) & (start_time <= baseline_range[1])
     time_type = np.where(incident, "incident", np.where(baseline, "baseline", "none"))
     dg["time_type"] = time_type
     return dg

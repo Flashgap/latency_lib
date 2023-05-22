@@ -174,6 +174,31 @@ def plot_category_repartition(df, mask):
     fig.show()
 
 
+def latencies_distributions_by(df, group_by, mask=None, **kwargs):
+    title = f"Latencies by {group_by}"
+    if mask is not None:
+        title += f" for: {mask.name()}"
+        df = mask.apply(df)
+
+    order = (
+        df.groupby(group_by)
+        .duration_ms.median()
+        .sort_values(ascending=False)
+        .index.to_list()
+    )
+    fig = px.box(
+        df,
+        y=group_by,
+        x="duration_ms",
+        category_orders={group_by: order},
+        title=title,
+        orientation="h",
+        height=max(len(order) * 70, 500),
+        **kwargs,
+    )
+    fig.show()
+
+
 def get_root_id(df):
     mask = ~df.parent_span_id.isin(df.span_id)
     d = df[mask].index
@@ -181,21 +206,23 @@ def get_root_id(df):
         raise RuntimeError("get_root_id expects a single root to be found")
     return d[0]
 
+
 def compute_proper_durations_by_field(group, field, duration_column, depth_column):
     def rec_compute(span_id, level):
         data.loc[span_id, "span_depth"] = level
         children_ids = data[data.parent_span_id == span_id].index
 
         for child_id in children_ids:
-            rec_compute(child_id, level+1)
-        
+            rec_compute(child_id, level + 1)
+
         exp_children = data.loc[children_ids, "explained"].sum()
         data.loc[span_id, "explained_children"] = exp_children
         data.loc[span_id, "proper"] = data.loc[span_id, "duration_ms"] - exp_children
 
         field_values = data.loc[span_id, field]
-        data.loc[span_id, "explained"] = np.where(pd.notna(field_values), data.loc[span_id, "duration_ms"], exp_children)
-        
+        data.loc[span_id, "explained"] = np.where(
+            pd.notna(field_values), data.loc[span_id, "duration_ms"], exp_children
+        )
 
     data = group.copy().set_index("span_id", drop=False)
     data.loc[:, "span_depth"] = np.nan
@@ -203,12 +230,9 @@ def compute_proper_durations_by_field(group, field, duration_column, depth_colum
     data.loc[:, "proper"] = np.nan
     data.loc[:, "explained_children"] = np.nan
     rec_compute(get_root_id(data), 0)
-    
+
     data.index = group.index
-    data = data.rename(columns={
-        "proper": duration_column,
-        "span_depth": depth_column
-    })
+    data = data.rename(columns={"proper": duration_column, "span_depth": depth_column})
     data = data[[duration_column, depth_column]]
 
     out = pd.concat([group, data], axis=1)

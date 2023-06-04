@@ -3,6 +3,8 @@ import numpy as np
 import plotly.express as px
 import logging
 
+auto_show_plots = True
+
 query_str = """
 SELECT 
     samples.trace_id as trace_id,
@@ -123,7 +125,8 @@ def plot_durations(df, mask, sample_rate="5min", color=None, normalize=False, **
     title = f"Latencies for: {mask.name()}"
     if color is not None:
         title += f", grouped by {color} contributions"
-    df = mask.apply(df).set_index("start_time")
+    df = mask.apply(df)
+    df = df.set_index("start_time")
 
     if normalize:
         title = title + ", normalized"
@@ -142,20 +145,22 @@ def plot_durations(df, mask, sample_rate="5min", color=None, normalize=False, **
 
     df = df.groupby(pd.Grouper(freq=sample_rate)).apply(fff)
     if isinstance(df, pd.DataFrame):
-        # sometimes if there is only one group, it will be considered as a column...
-        # so we just undo this
-        assert len(df.columns) == 1
+        # sometimes the result is a dataframe... thanks pandas, we turn it into a 
+        # Series again
         df = df.stack()
     df = df.rename("duration_ms").to_frame()
 
-    px.bar(
+    fig = px.bar(
         df.reset_index(),
         x="start_time",
         y="duration_ms",
         title=title,
         color=color,
         **kwargs,
-    ).show()
+    )
+    
+    if auto_show_plots:
+        fig.show() 
 
 
 def plot_category_repartition(df, mask):
@@ -171,8 +176,9 @@ def plot_category_repartition(df, mask):
         color_discrete_sequence=["red", "green"],
         hole=0.4,
     )
-    fig.show()
 
+    if auto_show_plots:
+        fig.show()
 
 def latencies_distributions_by(df, group_by, mask=None, **kwargs):
     title = f"Latencies by {group_by}"
@@ -196,7 +202,9 @@ def latencies_distributions_by(df, group_by, mask=None, **kwargs):
         height=max(len(order) * 70, 500),
         **kwargs,
     )
-    fig.show()
+
+    if auto_show_plots:
+        fig.show() 
 
 
 def get_root_id(df):
@@ -237,3 +245,37 @@ def compute_proper_durations_by_field(group, field, duration_column, depth_colum
 
     out = pd.concat([group, data], axis=1)
     return out
+
+def latencies_distributions_and_contributions(df, group_by, mask = None, color=None, bars=5, **kwargs):
+  low_percentile, up_percentile = sorted([bars, 100-bars])
+  
+  title=f"Latencies contributions by {group_by}"
+  if mask is not None:
+    title += f", {mask.name()}"
+    df = mask.apply(df)
+  title += f", bars={low_percentile}/{up_percentile}"
+
+  groupby=[group_by]
+  if color is not None:
+    groupby.append(color) 
+  
+  # Default kwargs
+  kw={
+    "log_y": True  
+  }
+  kw.update(kwargs)
+
+  dg = df.groupby(groupby).duration_ms.aggregate(["mean", "count", "max", "sum", percentile(low_percentile), percentile(up_percentile)]).reset_index()
+  fig = px.scatter(
+      dg, y="sum", x="mean", 
+      error_x_minus=f"percentile_{low_percentile}",
+      error_x=f"percentile_{up_percentile}",
+      hover_name=group_by,
+      color=color, 
+      title=title, 
+      **kw
+    )
+
+  if auto_show_plots:
+    fig.show()
+ 

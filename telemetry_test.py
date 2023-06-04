@@ -1,9 +1,16 @@
 import pandas as pd
 import numpy as np
+import pytest 
 
 from . import telemetry as t
 
-def test_one():
+
+@pytest.fixture(scope="module", autouse=True)
+def dont_show_figs():
+    """We do not want to show the figures in test mode"""
+    t.auto_show_plots = False
+
+def test_compute_proper():
     df = pd.DataFrame([
         {
             "groupfield": np.nan,
@@ -67,3 +74,43 @@ def test_one():
     
 
 
+def test_plot_durations():
+    df = pd.DataFrame([
+        {
+            "groupfield": np.nan,
+            "start_time": "2023-2-1T00:00",
+            "duration_ms": 32,
+            "span_id": "A",
+             
+        },
+        {
+            "groupfield": "datastore",
+            "start_time": "2023-2-1T00:06",
+            "duration_ms": 14,
+            "span_id": "B",
+            "parent_span_id": "A",
+        },
+        {
+            "groupfield": np.nan,
+            "duration_ms": 13   ,
+            "start_time": "2023-2-1T00:11",
+            "span_id": "C",
+            "parent_span_id": "A",
+        },  
+    ])
+    df["start_time"] = pd.to_datetime(df["start_time"]) 
+
+    mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
+    t.plot_durations(df, mask)
+
+
+def test_plot_durations_colored():
+    df = pd.read_json("real_test_data/extended.json", orient="table")
+    mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
+    t.plot_durations(df, mask, sample_rate="1H", color="method")
+    
+
+def test_plot_durations_extended():
+    df = pd.read_json("real_test_data/extended.json", orient="table")
+    mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
+    t.plot_durations(df, mask, sample_rate="1H", color="span_thirdparty")

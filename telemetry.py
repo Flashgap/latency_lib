@@ -121,39 +121,52 @@ def add_time_type(df, incident_range, baseline_range):
     return dg
 
 
-def plot_durations(df, mask, sample_rate="5min", color=None, normalize=False, **kwargs):
+def plot_durations(df, mask, x="root_start_time", sample_rate="5min", color=None, display_trace_rest=False, normalize=False, y="duration_ms" , **kwargs):
     title = f"Latencies for: {mask.name()}"
     if color is not None:
         title += f", grouped by {color} contributions"
     df = mask.apply(df)
-    df = df.set_index("start_time")
+    df = df.set_index(x)
 
     if normalize:
         title = title + ", normalized"
 
-    def fff(x):
+    def get_trace_duration(trace_spans):
+        root_id = get_root_span_id(trace_spans)
+        duration = trace_spans[trace_spans.span_id == root_id].duration_ms
+        return duration
+
+    def compute_timestep(x):
         if color is not None:
-            sums = x.groupby(color).duration_ms.sum()
+            sums = x.groupby(color)[y].sum()
+            if display_trace_rest:
+                traces_durations = x.groupby("trace_id").duration_ms.max()
+                rest = traces_durations.sum(axis=None) - sums.sum(axis=None)
+                sums["rest"] = rest
         else:
-            sums = x.duration_ms.sum(axis=None)
-        sums = sums / len(x)
+            sums = x[y].sum(axis=None)
 
+        num_traces = x.trace_id.nunique()
+     
+        means = sums / num_traces
+
+        out = means
         if normalize:
-            sums = sums / sums.sum(axis=None)
+            out = means / means.sum(axis=None)
 
-        return sums
+        return out
 
-    df = df.groupby(pd.Grouper(freq=sample_rate)).apply(fff)
+    df = df.groupby(pd.Grouper(freq=sample_rate)).apply(compute_timestep)
     if isinstance(df, pd.DataFrame):
         # sometimes the result is a dataframe... thanks pandas, we turn it into a 
         # Series again
         df = df.stack()
-    df = df.rename("duration_ms").to_frame()
+    df = df.rename(y).to_frame()
 
     fig = px.bar(
         df.reset_index(),
-        x="start_time",
-        y="duration_ms",
+        x=x,
+        y=y,
         title=title,
         color=color,
         **kwargs,
@@ -207,12 +220,14 @@ def latencies_distributions_by(df, group_by, mask=None, **kwargs):
         fig.show() 
 
 
-def get_root_id(df):
+def get_root_span_id(df):
     mask = ~df.parent_span_id.isin(df.span_id)
-    d = df[mask].index
+    d = df[mask]
     if len(d) != 1:
         raise RuntimeError("get_root_id expects a single root to be found")
-    return d[0]
+    if "span_id" in d.columns:
+        return d.span_id[0]
+    return d.index.get_level_values("span_id")
 
 
 def compute_proper_durations_by_field(group, field, duration_column, depth_column):
@@ -237,7 +252,7 @@ def compute_proper_durations_by_field(group, field, duration_column, depth_colum
     data.loc[:, "explained"] = np.nan
     data.loc[:, "proper"] = np.nan
     data.loc[:, "explained_children"] = np.nan
-    rec_compute(get_root_id(data), 0)
+    rec_compute(get_root_span_id(data), 0)
 
     data.index = group.index
     data = data.rename(columns={"proper": duration_column, "span_depth": depth_column})

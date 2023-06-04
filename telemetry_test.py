@@ -8,7 +8,7 @@ from . import telemetry as t
 @pytest.fixture(scope="module", autouse=True)
 def dont_show_figs():
     """We do not want to show the figures in test mode"""
-    t.auto_show_plots = False
+    t.auto_show_plots = True
 
 def test_compute_proper():
     df = pd.DataFrame([
@@ -98,7 +98,9 @@ def test_plot_durations():
             "parent_span_id": "A",
         },  
     ])
+    df["trace_id"] = "traceid_abc"
     df["start_time"] = pd.to_datetime(df["start_time"]) 
+    df["root_start_time"] = df["start_time"] 
 
     mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
     t.plot_durations(df, mask)
@@ -113,4 +115,11 @@ def test_plot_durations_colored():
 def test_plot_durations_extended():
     df = pd.read_json("real_test_data/extended.json", orient="table")
     mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
-    t.plot_durations(df, mask, sample_rate="1H", color="span_thirdparty")
+    t.plot_durations(df, mask, y="proper_ms", sample_rate="1H", color="span_thirdparty", display_trace_rest=True)
+
+
+def test_plot_durations_extended_full():
+    df = pd.read_parquet("real_test_data/extended_full.parquet.gzip")
+    mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
+    t.plot_durations(df, mask, y="proper_ms", sample_rate="1H", color="span_thirdparty", display_trace_rest=True)
+

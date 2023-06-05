@@ -14,6 +14,7 @@ SELECT
     parent.name as parent_name,
     root.name as root_name,
     root.start_time as root_start_time,
+    root.span_id as root_span_id,
     STRING(json_extract(root.attributes, "$['http.method']")) as method,
     span.start_time as start_time,
     span.duration_nano/1000000 as duration_ms

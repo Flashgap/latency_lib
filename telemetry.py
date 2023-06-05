@@ -40,7 +40,7 @@ ORDER BY span.start_time
 """
 
 
-def get_data(start_time, end_time, sample_rate=1.0):
+def get_data(bigquery, start_time, end_time, sample_rate=1.0):
     client = bigquery.Client(project="fruitsy-tutty")
 
     job_config = bigquery.QueryJobConfig(
@@ -63,7 +63,7 @@ def get_data(start_time, end_time, sample_rate=1.0):
 
 def extract_thirdparty(s):
     tp = s.split(".")[0].lower()
-    if tp in ("datastore", "cache"):
+    if tp in ("datastore", "cache", "elastic", "task", "vision", "experiments", "analytics", "appstore", "firebaseauth"):
         return tp
     return np.nan
 

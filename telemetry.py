@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import logging
+from joblib import Parallel, delayed
+import multiprocessing
 
 auto_show_plots = True
 
@@ -295,3 +297,21 @@ def latencies_distributions_and_contributions(df, group_by, mask = None, color=N
   if auto_show_plots:
     fig.show()
  
+def applyParallel(dfGrouped, func, *args, **kwargs):
+    retLst = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(func)(group, *args, **kwargs) for name, group in dfGrouped)
+    return pd.concat(retLst)
+
+def get_extended_dataset(df, dump_path_extended):
+    if dump_path_extended.exists():
+        print("Reading the proper durations from the disk")
+        frameproper = pd.read_parquet(dump_path_extended)
+    else:  
+        print("Computing the proper durations")
+        frameproper = applyParallel(df.groupby("trace_id"),
+          compute_proper_durations_by_field, 
+          "span_thirdparty",
+          "proper_ms",
+          "depth"
+        )
+        frameproper.to_parquet(dump_path_extended, compression="gzip")
+    return frameproper

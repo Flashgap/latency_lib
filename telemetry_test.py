@@ -123,3 +123,11 @@ def test_plot_durations_extended_full():
     mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
     t.plot_durations(df, mask, y="proper_ms", sample_rate="1H", color="span_thirdparty", display_trace_rest=True)
 
+
+
+def test_plot_durations_extended_full_norest():
+    df = pd.read_parquet("real_test_data/extended_full.parquet.gzip")
+    mask = t.Mask(lambda x: pd.Series(True, index=x.index), "ALL")
+    t.plot_durations(df, mask, y="proper_ms", sample_rate="1H", color="span_thirdparty", display_trace_rest=False) 
+
+

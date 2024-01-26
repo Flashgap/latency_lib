@@ -43,8 +43,11 @@ ORDER BY span.start_time
 """
 
 
-def get_data(bigquery, start_time, end_time, sample_rate=1.0):
-    client = bigquery.Client(project="fruitsy-tutty")
+def get_data(bigquery, start_time, end_time, sample_rate=1.0, gcp_project=None):
+    if gcp_project is None:
+        gcp_project = "fruitsy-tutty"
+
+    client = bigquery.Client(project=gcp_project)
 
     job_config = bigquery.QueryJobConfig(
         query_parameters=[

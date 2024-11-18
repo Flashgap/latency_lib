@@ -3,3 +3,4 @@ __pycache__
 .idea
 real_test_data/*
 prof/*
+.venv

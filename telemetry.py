@@ -2,51 +2,14 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import logging
-from joblib import Parallel, delayed
 import multiprocessing
+from joblib import Parallel, delayed
+from .queries import select_query
 
 auto_show_plots = True
 
-query_str = """
-SELECT 
-    samples.trace_id as trace_id,
-    span.span_id as span_id,
-    span.name as span_name,
-    parent.span_id as parent_span_id,
-    parent.name as parent_name,
-    root.name as root_name,
-    root.start_time as root_start_time,
-    root.span_id as root_span_id,
-    STRING(json_extract(root.attributes, "$['http.method']")) as method,
-    span.start_time as start_time,
-    span.duration_nano/1000000 as duration_ms
-FROM (
-  SELECT trace_id FROM (
-  SELECT DISTINCT(trace_id) FROM traces.spans s
-  WHERE contains_substr(name, "/api/") AND s.start_time BETWEEN @start_time AND @end_time
-  ) 
-  WHERE RAND()<=@sample_rate
-) samples
-INNER JOIN (
-  SELECT * FROM `traces.spans`
-  WHERE contains_substr(name, "/api/")
-) root
-ON samples.trace_id = root.trace_id
-INNER JOIN `traces.spans` span
-ON root.trace_id = span.trace_id
-LEFT JOIN (
-  SELECT * FROM `traces.spans`
-) parent
-ON parent.span_id = span.parent_span_id
-ORDER BY span.start_time
 
-"""
-
-
-def get_data(bigquery, start_time, end_time, sample_rate=1.0, gcp_project=None):
-    if gcp_project is None:
-        gcp_project = "fruitsy-tutty"
-
+def get_data(bigquery, start_time, end_time, gcp_project: str, sample_rate=1.0):
     client = bigquery.Client(project=gcp_project)
 
     job_config = bigquery.QueryJobConfig(
@@ -62,14 +25,15 @@ def get_data(bigquery, start_time, end_time, sample_rate=1.0, gcp_project=None):
     )
 
     logging.getLogger().setLevel(logging.DEBUG)
-    query_job = client.query(query_str, job_config=job_config)
+    query_job = client.query(select_query(), job_config=job_config)
     logging.getLogger().setLevel(logging.INFO)
     return query_job.to_dataframe()
 
 
 def extract_thirdparty(s):
     tp = s.split(".")[0].lower()
-    if tp in ("datastore", "cache", "elastic", "task", "vision", "experiments", "analytics", "appstore", "firebaseauth"):
+    if tp in (
+    "datastore", "cache", "elastic", "task", "vision", "experiments", "analytics", "appstore", "firebaseauth"):
         return tp
     return np.nan
 
@@ -80,7 +44,6 @@ def postprocess(df):
     df["type"] = df.root_name.str.extract(r"/api/v1.0/([^/]+)/[^/]+.*")
     df["request"] = df["method"] + " " + df["route"]
     df["start_time"] = df.start_time.dt.tz_convert("Europe/Paris")
-
     df["span_thirdparty"] = df["span_name"].apply(extract_thirdparty)
 
     return df
@@ -127,7 +90,8 @@ def add_time_type(df, incident_range, baseline_range):
     return dg
 
 
-def plot_durations(df, mask, x="root_start_time", sample_rate="5min", color=None, display_trace_rest=False, normalize=False, y="duration_ms" , **kwargs):
+def plot_durations(df, mask, x="root_start_time", sample_rate="5min", color=None, display_trace_rest=False,
+                   normalize=False, y="duration_ms", **kwargs):
     title = f"Latencies for: {mask.name()}"
     if color is not None:
         title += f", grouped by {color} contributions"
@@ -153,7 +117,7 @@ def plot_durations(df, mask, x="root_start_time", sample_rate="5min", color=None
             sums = x[y].sum(axis=None)
 
         num_traces = x.trace_id.nunique()
-     
+
         means = sums / num_traces
 
         out = means
@@ -177,9 +141,9 @@ def plot_durations(df, mask, x="root_start_time", sample_rate="5min", color=None
         color=color,
         **kwargs,
     )
-    
+
     if auto_show_plots:
-        fig.show() 
+        fig.show()
 
 
 def plot_category_repartition(df, mask):
@@ -198,6 +162,7 @@ def plot_category_repartition(df, mask):
 
     if auto_show_plots:
         fig.show()
+
 
 def latencies_distributions_by(df, group_by, mask=None, **kwargs):
     title = f"Latencies by {group_by}"
@@ -223,7 +188,7 @@ def latencies_distributions_by(df, group_by, mask=None, **kwargs):
     )
 
     if auto_show_plots:
-        fig.show() 
+        fig.show()
 
 
 def get_root_span_id(df):
@@ -267,54 +232,59 @@ def compute_proper_durations_by_field(group, field, duration_column, depth_colum
     out = pd.concat([group, data], axis=1)
     return out
 
-def latencies_distributions_and_contributions(df, group_by, mask = None, color=None, bars=5, **kwargs):
-  low_percentile, up_percentile = sorted([bars, 100-bars])
-  
-  title=f"Latencies contributions by {group_by}"
-  if mask is not None:
-    title += f", {mask.name()}"
-    df = mask.apply(df)
-  title += f", bars={low_percentile}/{up_percentile}"
 
-  groupby=[group_by]
-  if color is not None:
-    groupby.append(color) 
-  
-  # Default kwargs
-  kw={
-    "log_y": True  
-  }
-  kw.update(kwargs)
+def latencies_distributions_and_contributions(df, group_by, mask=None, color=None, bars=5, **kwargs):
+    low_percentile, up_percentile = sorted([bars, 100 - bars])
 
-  dg = df.groupby(groupby).duration_ms.aggregate(["mean", "count", "max", "sum", percentile(low_percentile), percentile(up_percentile)]).reset_index()
-  fig = px.scatter(
-      dg, y="sum", x="mean", 
-      error_x_minus=f"percentile_{low_percentile}",
-      error_x=f"percentile_{up_percentile}",
-      hover_name=group_by,
-      color=color, 
-      title=title, 
-      **kw
+    title = f"Latencies contributions by {group_by}"
+    if mask is not None:
+        title += f", {mask.name()}"
+        df = mask.apply(df)
+    title += f", bars={low_percentile}/{up_percentile}"
+
+    groupby = [group_by]
+    if color is not None:
+        groupby.append(color)
+
+        # Default kwargs
+    kw = {
+        "log_y": True
+    }
+    kw.update(kwargs)
+
+    dg = df.groupby(groupby).duration_ms.aggregate(
+        ["mean", "count", "max", "sum", percentile(low_percentile), percentile(up_percentile)]).reset_index()
+    fig = px.scatter(
+        dg, y="sum", x="mean",
+        error_x_minus=f"percentile_{low_percentile}",
+        error_x=f"percentile_{up_percentile}",
+        hover_name=group_by,
+        color=color,
+        title=title,
+        **kw
     )
 
-  if auto_show_plots:
-    fig.show()
- 
+    if auto_show_plots:
+        fig.show()
+
+
 def applyParallel(dfGrouped, func, *args, **kwargs):
-    retLst = Parallel(n_jobs=multiprocessing.cpu_count())(delayed(func)(group, *args, **kwargs) for name, group in dfGrouped)
+    retLst = Parallel(n_jobs=multiprocessing.cpu_count())(
+        delayed(func)(group, *args, **kwargs) for name, group in dfGrouped)
     return pd.concat(retLst)
+
 
 def get_extended_dataset(df, dump_path_extended):
     if dump_path_extended.exists():
         print("Reading the proper durations from the disk")
         frameproper = pd.read_parquet(dump_path_extended)
-    else:  
+    else:
         print("Computing the proper durations")
         frameproper = applyParallel(df.groupby("trace_id"),
-          compute_proper_durations_by_field, 
-          "span_thirdparty",
-          "proper_ms",
-          "depth"
-        )
+                                    compute_proper_durations_by_field,
+                                    "span_thirdparty",
+                                    "proper_ms",
+                                    "depth"
+                                    )
         frameproper.to_parquet(dump_path_extended, compression="gzip")
     return frameproper

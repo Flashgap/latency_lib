@@ -5,6 +5,7 @@ setup(
     version='1.0.0',
     url='https://github.com:Flashgap/latency_lib',
     description='Latency helpers for Fruitz',
+    include_package_data=True,
     packages=find_packages(),
     install_requires=[
         'numpy >= 1.11.1',

@@ -5,11 +5,13 @@ import logging
 import multiprocessing
 from joblib import Parallel, delayed
 from queries import select_query
+import datetime
+from google.cloud import bigquery
 
 auto_show_plots = True
 
 
-def get_data(bigquery, start_time, end_time, gcp_project: str, sample_rate=1.0):
+def get_data(start_time, end_time: datetime.datetime, gcp_project: str, sample_rate=1.0):
     client = bigquery.Client(project=gcp_project)
 
     job_config = bigquery.QueryJobConfig(
@@ -33,7 +35,7 @@ def get_data(bigquery, start_time, end_time, gcp_project: str, sample_rate=1.0):
 def extract_thirdparty(s):
     tp = s.split(".")[0].lower()
     if tp in (
-    "datastore", "cache", "elastic", "task", "vision", "experiments", "analytics", "appstore", "firebaseauth"):
+            "datastore", "cache", "elastic", "task", "vision", "experiments", "analytics", "appstore", "firebaseauth"):
         return tp
     return np.nan
 
@@ -268,7 +270,7 @@ def latencies_distributions_and_contributions(df, group_by, mask=None, color=Non
         fig.show()
 
 
-def applyParallel(dfGrouped, func, *args, **kwargs):
+def apply_parallel(dfGrouped, func, *args, **kwargs):
     retLst = Parallel(n_jobs=multiprocessing.cpu_count())(
         delayed(func)(group, *args, **kwargs) for name, group in dfGrouped)
     return pd.concat(retLst)
@@ -280,11 +282,11 @@ def get_extended_dataset(df, dump_path_extended):
         frameproper = pd.read_parquet(dump_path_extended)
     else:
         print("Computing the proper durations")
-        frameproper = applyParallel(df.groupby("trace_id"),
-                                    compute_proper_durations_by_field,
-                                    "span_thirdparty",
-                                    "proper_ms",
-                                    "depth"
-                                    )
+        frameproper = apply_parallel(df.groupby("trace_id"),
+                                     compute_proper_durations_by_field,
+                                     "span_thirdparty",
+                                     "proper_ms",
+                                     "depth"
+                                     )
         frameproper.to_parquet(dump_path_extended, compression="gzip")
     return frameproper

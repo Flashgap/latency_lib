@@ -6,3 +6,4 @@ prof/*
 .venv
 build
 latency_lib.egg-info
+latencylib.egg-info

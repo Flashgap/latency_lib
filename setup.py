@@ -12,6 +12,7 @@ setup(
         'matplotlib >= 1.5.1',
         'pandas >= 0.19.2',
         'plotly >= 4.14.3',
+        'joblib >= 0.9.4',
         'google-cloud-bigquery >= 3.27.0',
     ],
 )

@@ -1,5 +1,0 @@
-numpy>=1.11.1
-matplotlib>=1.5.1
-pandas>=0.19.2
-plotly>=4.14.3
-google-cloud-bigquery>=3.27.0

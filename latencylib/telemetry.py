@@ -4,7 +4,7 @@ import plotly.express as px
 import logging
 import multiprocessing
 from joblib import Parallel, delayed
-from queries import select_query
+from latencylib.queries import select_query
 import datetime
 from google.cloud import bigquery
 

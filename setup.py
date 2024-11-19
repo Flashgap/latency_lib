@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='latency_lib',
+    name='latencylib',
     version='1.0.0',
     url='https://github.com:Flashgap/latency_lib',
     description='Latency helpers for Fruitz',

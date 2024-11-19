@@ -4,7 +4,7 @@ import plotly.express as px
 import logging
 import multiprocessing
 from joblib import Parallel, delayed
-from .queries import select_query
+from queries import select_query
 
 auto_show_plots = True
 

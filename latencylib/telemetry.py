@@ -4,14 +4,14 @@ import plotly.express as px
 import logging
 import multiprocessing
 from joblib import Parallel, delayed
-from latencylib.queries import select_query
+from latencylib.queries import select_query, select_name_query
 import datetime
 from google.cloud import bigquery
 
 auto_show_plots = True
 
 
-def get_data(start_time, end_time: datetime.datetime, gcp_project: str, sample_rate=1.0):
+def get_data(gcp_project: str, start_time, end_time: datetime.datetime, sample_rate=1.0):
     client = bigquery.Client(project=gcp_project)
 
     job_config = bigquery.QueryJobConfig(
@@ -28,6 +28,28 @@ def get_data(start_time, end_time: datetime.datetime, gcp_project: str, sample_r
 
     logging.getLogger().setLevel(logging.DEBUG)
     query_job = client.query(select_query(), job_config=job_config)
+    logging.getLogger().setLevel(logging.INFO)
+    return query_job.to_dataframe()
+
+
+def get_spans_by_name(gcp_project: str, start_time, end_time: datetime.datetime, name: str, sample_rate=1.0):
+    client = bigquery.Client(project=gcp_project)
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter(
+                "start_time", "TIMESTAMP", pd.Timestamp(start_time).to_pydatetime()
+            ),
+            bigquery.ScalarQueryParameter(
+                "end_time", "TIMESTAMP", pd.Timestamp(end_time).to_pydatetime()
+            ),
+            bigquery.ScalarQueryParameter("sample_rate", "NUMERIC", sample_rate),
+            bigquery.ScalarQueryParameter("name", "STRING", name),
+        ]
+    )
+
+    logging.getLogger().setLevel(logging.DEBUG)
+    query_job = client.query(select_name_query(), job_config=job_config)
     logging.getLogger().setLevel(logging.INFO)
     return query_job.to_dataframe()
 

@@ -4,11 +4,13 @@ import plotly.express as px
 import logging
 import multiprocessing
 from joblib import Parallel, delayed
-from latencylib.queries import select_query
+from latencylib import queries
 import datetime
 from google.cloud import bigquery
 
 auto_show_plots = True
+
+_DEFAULT_LIMIT = 10000
 
 
 def get_spans(gcp_project: str, start_time, end_time: datetime.datetime, name_contains: str = "/api/", sample_rate=1.0):
@@ -16,19 +18,36 @@ def get_spans(gcp_project: str, start_time, end_time: datetime.datetime, name_co
 
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter(
-                "start_time", "TIMESTAMP", pd.Timestamp(start_time).to_pydatetime()
-            ),
-            bigquery.ScalarQueryParameter(
-                "end_time", "TIMESTAMP", pd.Timestamp(end_time).to_pydatetime()
-            ),
+            bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", pd.Timestamp(start_time).to_pydatetime()),
+            bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", pd.Timestamp(end_time).to_pydatetime()),
             bigquery.ScalarQueryParameter("sample_rate", "NUMERIC", sample_rate),
             bigquery.ScalarQueryParameter("name", "STRING", name_contains),
         ]
     )
 
     logging.getLogger().setLevel(logging.DEBUG)
-    query_job = client.query(select_query(), job_config=job_config)
+    query_job = client.query(queries.select_query(), job_config=job_config)
+    logging.getLogger().setLevel(logging.INFO)
+    return query_job.to_dataframe()
+
+
+def get_datastore_multi_entities(gcp_project: str, start_time, end_time: datetime.datetime, datastore_op_name: str,
+                                 datastore_entity_name: str, sample_rate=1.0, limit=_DEFAULT_LIMIT):
+    client = bigquery.Client(project=gcp_project)
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("start_time", "TIMESTAMP", pd.Timestamp(start_time).to_pydatetime()),
+            bigquery.ScalarQueryParameter("end_time", "TIMESTAMP", pd.Timestamp(end_time).to_pydatetime()),
+            bigquery.ScalarQueryParameter("sample_rate", "NUMERIC", sample_rate),
+            bigquery.ScalarQueryParameter("limit", "NUMERIC", limit),
+            bigquery.ScalarQueryParameter("name", "STRING", f"Datastore.Client.{datastore_op_name}"),
+            bigquery.ScalarQueryParameter("entity_name", "STRING", datastore_entity_name),
+        ]
+    )
+
+    logging.getLogger().setLevel(logging.DEBUG)
+    query_job = client.query(queries.select_datastore_multi_entities(), job_config=job_config)
     logging.getLogger().setLevel(logging.INFO)
     return query_job.to_dataframe()
 

@@ -8,6 +8,7 @@ SELECT
     root.start_time as root_start_time,
     root.span_id as root_span_id,
     STRING(json_extract(root.attributes, "$['http.method']")) as method,
+    root.attributes as attributes,
     span.start_time as start_time,
     span.duration_nano/1000000 as duration_ms
 FROM (

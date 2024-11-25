@@ -13,13 +13,13 @@ SELECT
 FROM (
     SELECT trace_id FROM (
         SELECT DISTINCT(trace_id) FROM traces.spans s
-        WHERE contains_substr(name, "/api/") AND s.start_time BETWEEN @start_time AND @end_time
+        WHERE contains_substr(name, @name) AND s.start_time BETWEEN @start_time AND @end_time
     )
   WHERE RAND()<=@sample_rate
 ) AS samples
 INNER JOIN (
     SELECT * FROM `traces.spans`
-    WHERE contains_substr(name, "/api/")
+    WHERE contains_substr(name, @name)
 ) AS root
 ON samples.trace_id = root.trace_id
 INNER JOIN `traces.spans` span
